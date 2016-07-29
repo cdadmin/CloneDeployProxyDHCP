@@ -1,0 +1,14 @@
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\CloneDeploy_Proxy_Dhcp.exe.config
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\CloneDeploy_Proxy_Dhcp.exe
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\CloneDeploy_Proxy_Dhcp.pdb
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\INIFileParser.dll
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\Mono.Posix.dll
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\Newtonsoft.Json.dll
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\INIFileParser.xml
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\bin\Release\Newtonsoft.Json.xml
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\obj\x86\Release\Proxy_Dhcp.csprojResolveAssemblyReference.cache
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\obj\x86\Release\CloneDeploy_Proxy_Dhcp.ServiceHost.DhcpHost.resources
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\obj\x86\Release\CloneDeploy_Proxy_Dhcp.ServiceHost.ProjectInstaller.resources
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\obj\x86\Release\Proxy_Dhcp.csproj.GenerateResource.Cache
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\obj\x86\Release\CloneDeploy_Proxy_Dhcp.exe
+C:\Users\jdolny\Development\CloneDeployProxyDHCP\Proxy_Dhcp\obj\x86\Release\CloneDeploy_Proxy_Dhcp.pdb
