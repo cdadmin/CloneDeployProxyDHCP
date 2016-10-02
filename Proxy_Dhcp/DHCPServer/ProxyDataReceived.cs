@@ -83,7 +83,8 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
                     Trace.WriteLine("Web Reservation Found");
                     replyOptions.NextServer = IPAddress.Parse(webReservation.NextServer);
                     replyOptions.BootFileName = webReservation.BootFile;
-                    replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(webReservation.BcdFile));
+                    if(webReservation.BcdFile != null)
+                        replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(webReservation.BcdFile));
                 }
                 else
                 {
