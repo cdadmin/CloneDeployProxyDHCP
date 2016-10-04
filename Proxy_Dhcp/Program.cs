@@ -61,7 +61,7 @@ namespace CloneDeploy_Proxy_Dhcp
 
             if (args.Length > 0 && ContainsSwitch(args, "version"))
             {
-                Console.WriteLine("2.0.0");
+                Console.WriteLine("2.0.1");
                 Environment.Exit(0);
             }
 
