@@ -1,5 +1,0 @@
-; This file specifies a list of mac address that the CloneDeploy Proxy DHCP Server will not respond to 
-; This file is always processed reguardless of settings in config.ini
-; The deny list will always override the allow list
-; This file expects one mac address per line in the format of 000000000000 or 00:00:00:00:00:00 or 00-00-00-00-00-00-00
-;00:11:22:33:44:55

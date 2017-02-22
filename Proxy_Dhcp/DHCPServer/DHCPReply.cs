@@ -152,7 +152,7 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
 
                 if (msgType == DHCPMsgType.DHCPACK)
                 {
-                    Trace.WriteLine("Sending Acknowledgement to " + new IPAddress(replyBuffer.ciaddr) + ":" + replyPort);
+                    //Trace.WriteLine("Sending Acknowledgement to " + new IPAddress(replyBuffer.ciaddr) + ":" + replyPort);
                     _dhcpRequest.requestSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, false);
                     endPoint = new IPEndPoint(new IPAddress(replyBuffer.ciaddr), replyPort);
                 }
@@ -161,13 +161,13 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
                     if ((replyBuffer.giaddr[0] == 0) && (replyBuffer.giaddr[1] == 0) &&
                         (replyBuffer.giaddr[2] == 0) && (replyBuffer.giaddr[3] == 0))
                     {
-                        Trace.WriteLine("Sending Offer To " + IPAddress.Broadcast + ":" + PORT_TO_SEND_TO_CLIENT);
+                        //Trace.WriteLine("Sending Offer To " + IPAddress.Broadcast + ":" + PORT_TO_SEND_TO_CLIENT);
                         _dhcpRequest.requestSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
                         endPoint = new IPEndPoint(IPAddress.Broadcast, PORT_TO_SEND_TO_CLIENT);
                     }
                     else
                     {
-                        Trace.WriteLine("Sending Offer To " + new IPAddress(replyBuffer.giaddr) + ":" + PORT_TO_SEND_TO_RELAY);
+                        //Trace.WriteLine("Sending Offer To " + new IPAddress(replyBuffer.giaddr) + ":" + PORT_TO_SEND_TO_RELAY);
                         _dhcpRequest.requestSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, false);
                         endPoint = new IPEndPoint(new IPAddress(replyBuffer.giaddr), PORT_TO_SEND_TO_RELAY);
                     }

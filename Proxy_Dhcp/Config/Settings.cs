@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Text;
 using CloneDeploy_Proxy_Dhcp.Helpers;
 
 namespace CloneDeploy_Proxy_Dhcp.Config
@@ -22,6 +23,8 @@ namespace CloneDeploy_Proxy_Dhcp.Config
         public static bool ListenBSDP { get; private set; }
         public static string AppleEFIBootFile { get; private set; }
         public static string ServerIdentifierOverride { get; private set; }
+        public static byte[] PXEClient { get; set; }
+        public static byte[] AAPLBSDPC { get; set; }
 
         public void SetAll()
         {
@@ -64,6 +67,8 @@ namespace CloneDeploy_Proxy_Dhcp.Config
                 isError = true;
             }
 
+            PXEClient = Encoding.UTF8.GetBytes("PXEClient");
+            AAPLBSDPC = Encoding.UTF8.GetBytes("AAPLBSDPC");
 
             CloneDeployServiceURL = reader.ReadConfig("settings", "clonedeploy-service-url");
 
@@ -87,7 +92,7 @@ namespace CloneDeploy_Proxy_Dhcp.Config
 
 
             AppleEFIBootFile = reader.ReadConfig("settings", "apple-efi-boot-file");
-
+           
             if (!string.IsNullOrEmpty(Settings.CloneDeployServiceURL))
             {
                 using (var client = new WebClient())

@@ -115,6 +115,7 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
         /// <param name="port">Port to bind to</param>
         public DHCPServer(IPAddress bindIp,int port)
         {
+
             localEndPoint = new IPEndPoint(bindIp, port);
             _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);

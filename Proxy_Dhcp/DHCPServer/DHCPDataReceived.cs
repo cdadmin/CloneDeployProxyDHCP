@@ -12,33 +12,42 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
         public void Process(DHCPRequest dhcpRequest)
         {
             var requestType = dhcpRequest.GetMsgType();
-            Trace.WriteLine(requestType + " Request From " + Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true) + " " +
-                              dhcpRequest.GetSourceIP() + ":" + dhcpRequest.GetSourcePort());
-
-            var clientHardwareAddress = new PhysicalAddress(dhcpRequest.GetChaddr());
-            if (DHCPServer.AclList.ContainsKey(clientHardwareAddress) && !DHCPServer.AclList[clientHardwareAddress] ||
-                !DHCPServer.AclList.ContainsKey(clientHardwareAddress) && !Settings.AllowAll)
-            {
-                Trace.WriteLine("Request Denied By ACL - Ignoring");
+            if (requestType != DHCPMsgType.DHCPDISCOVER && requestType != DHCPMsgType.DHCPINFORM)
                 return;
-            }
+
+
+
+                var clientHardwareAddress = new PhysicalAddress(dhcpRequest.GetChaddr());
+                if (DHCPServer.AclList.ContainsKey(clientHardwareAddress) && !DHCPServer.AclList[clientHardwareAddress] ||
+                    !DHCPServer.AclList.ContainsKey(clientHardwareAddress) && !Settings.AllowAll)
+                {
+                    Trace.WriteLine("Request Denied By ACL - Ignoring");
+                    return;
+                }
+            
 
             var vendorId = dhcpRequest.GetVendorOptionData();
             if (vendorId != null)
             {
-                var strVendorId = Utility.ByteArrayToString(vendorId, true);
-                Trace.WriteLine("Vendor Class Id " + strVendorId + " " + Encoding.Default.GetString(vendorId));
+                Trace.WriteLine(requestType + " Request From " +
+                                Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true));
 
-                if (requestType == DHCPMsgType.DHCPDISCOVER && strVendorId.StartsWith("505845436C69656E74"))
+                var strVendorId = Utility.ByteArrayToString(vendorId, true);
+
                 //Expected Format: 505845436C69656E743A417263683A30303030303A554E44493A303032303031 (PXEClient:Arch:00000:UNDI:002001)
+                if (strVendorId.StartsWith("505845436C69656E74"))                 
                     ProcessPXERequest(dhcpRequest);
-                else if (requestType == DHCPMsgType.DHCPINFORM && strVendorId.StartsWith("4141504C4253445043") && Settings.ListenBSDP)
+
+                if (!Settings.ListenBSDP) return;
+
+                Trace.WriteLine("Vendor Class Id " + strVendorId);
                 //Expected Format: 4141504C42534450432F693338362F694D616331342C33 (AAPLBSDPC/i386/iMac14,3)
+                if (strVendorId.StartsWith("4141504C4253445043"))
                 {
                     var vendorSpecificInformation = dhcpRequest.GetVendorSpecificInformation();
                     if (vendorSpecificInformation != null)
                     {
-                        var strVendorInformation = Utility.ByteArrayToString(vendorSpecificInformation,true);
+                        var strVendorInformation = Utility.ByteArrayToString(vendorSpecificInformation, true);
                         if (strVendorInformation.Length >= 6)
                         {
                             switch (strVendorInformation.Substring(0, 6))
@@ -51,39 +60,37 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
                                         Utility.ByteArrayToString(
                                             string.IsNullOrEmpty(Settings.ServerIdentifierOverride)
                                                 ? IPAddress.Parse(Settings.Nic).GetAddressBytes()
-                                                : IPAddress.Parse(Settings.ServerIdentifierOverride).GetAddressBytes(),
+                                                : IPAddress.Parse(Settings.ServerIdentifierOverride)
+                                                    .GetAddressBytes(),
                                             true);
-                                    
+
                                     if (strVendorInformation.Contains(interfaceHex))
                                         SendSelectedNetBoot(dhcpRequest);
                                     else
                                         Trace.WriteLine("Different BSDP Server Targeted - Ignoring");
                                     break;
                                 default:
-                                    Trace.WriteLine("Not An Apple BSDP Request, Vendor Specific Information Mismatch - Ignoring");
+                                    Trace.WriteLine(
+                                        "Not An Apple BSDP Request, Vendor Specific Information Mismatch - Ignoring");
+
                                     break;
                             }
                         }
-                        else
-                            Trace.WriteLine("Unexpected Vendor Specific Information - Ignoring");               
                     }
-                    else
-                        Trace.WriteLine("No Vendor Specific Information Supplied - Ignoring");                   
+
                 }
-                else
-                    Trace.WriteLine("Request Is Not A PXE or NetBoot Request - Ignoring");
+
             }
-            else
-                Trace.WriteLine("No Vendor Class Id Supplied - Ignoring");
 
             Trace.WriteLine("");
+
         }
 
         static void ProcessPXERequest(DHCPRequest dhcpRequest)
         {
-            Trace.WriteLine("Request Is A PXE Boot");
+            //Trace.WriteLine("Request Is A PXE Boot");
             var replyOptions = new DHCPReplyOptions();
-            replyOptions.OtherOptions.Add(DHCPOption.Vendorclassidentifier, Encoding.UTF8.GetBytes("PXEClient"));
+            replyOptions.OtherOptions.Add(DHCPOption.Vendorclassidentifier, Settings.PXEClient);
             var reply = new DHCPReply(dhcpRequest);
             reply.Send(DHCPMsgType.DHCPOFFER, replyOptions, 68);
         }
@@ -105,7 +112,7 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
             }
 
             var replyOptions = new DHCPReplyOptions();
-            replyOptions.OtherOptions.Add(DHCPOption.Vendorclassidentifier, Encoding.UTF8.GetBytes("AAPLBSDPC"));
+            replyOptions.OtherOptions.Add(DHCPOption.Vendorclassidentifier, Settings.AAPLBSDPC);
             replyOptions.OtherOptions.Add(DHCPOption.VendorSpecificInformation, Utility.StringToByteArray(Settings.VendorInfo));
             var reply = new DHCPReply(dhcpRequest);
             reply.Send(DHCPMsgType.DHCPACK, replyOptions, bsdpPort);
@@ -125,7 +132,7 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
 
             var replyOptions = new DHCPReplyOptions();
             replyOptions.NextServer = IPAddress.Parse(Settings.NextServer);
-            replyOptions.OtherOptions.Add(DHCPOption.Vendorclassidentifier, Encoding.UTF8.GetBytes("AAPLBSDPC"));
+            replyOptions.OtherOptions.Add(DHCPOption.Vendorclassidentifier, Settings.AAPLBSDPC);
             replyOptions.OtherOptions.Add(DHCPOption.VendorSpecificInformation, Utility.StringToByteArray(Settings.VendorInfo));
             replyOptions.OtherOptions.Add(DHCPOption.RootPath, Encoding.UTF8.GetBytes(targetNbi));
 

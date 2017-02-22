@@ -1,3 +1,0 @@
-;This can be used send specific clients to specific tftp servers or boot files
-;This file expects one reservation per line in the format of mac address,next-server,bootfile,bcdfile(optional)
-;00:11:22:33:44:55,192.168.56.1,proxy/bios/pxelinux.0 OR 00:11:22:33:44:55,192.168.56.1,proxy/efi64/bootmgfw.efi,boot/bcdx64
