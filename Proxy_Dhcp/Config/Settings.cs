@@ -1,8 +1,10 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using CloneDeploy_Proxy_Dhcp.Helpers;
+using CloneDeploy_Proxy_Dhcp.Tftp;
 
 namespace CloneDeploy_Proxy_Dhcp.Config
 {
@@ -25,6 +27,11 @@ namespace CloneDeploy_Proxy_Dhcp.Config
         public static string ServerIdentifierOverride { get; private set; }
         public static byte[] PXEClient { get; set; }
         public static byte[] AAPLBSDPC { get; set; }
+        public static bool CheckWebReservations { get; set; }
+        public static bool CheckTftpCluster { get; set; }
+        public static bool CheckAppleApi { get; set; }
+        public static int TftpPollingInterval { get; set; }
+
 
         public void SetAll()
         {
@@ -67,11 +74,32 @@ namespace CloneDeploy_Proxy_Dhcp.Config
                 isError = true;
             }
 
+            try
+            {
+                CheckWebReservations = Convert.ToBoolean(reader.ReadConfig("settings", "check-web-reservations"));
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("check-web-reservations Is Not Valid.  Valid Entries Include true or false");
+                isError = true;
+            }
+
+            try
+            {
+                CheckTftpCluster = Convert.ToBoolean(reader.ReadConfig("settings", "check-tftp-cluster"));
+            }
+            catch (Exception)
+            {
+                Console.WriteLine("check-tftp-cluster Is Not Valid.  Valid Entries Include true or false");
+                isError = true;
+            }
+
             PXEClient = Encoding.UTF8.GetBytes("PXEClient");
             AAPLBSDPC = Encoding.UTF8.GetBytes("AAPLBSDPC");
 
-            CloneDeployServiceURL = reader.ReadConfig("settings", "clonedeploy-service-url");
-
+            CloneDeployServiceURL = reader.ReadConfig("settings", "clonedeploy-base-url");
+            if (!CloneDeployServiceURL.Trim().EndsWith("/"))
+                CloneDeployServiceURL += "/";
             BiosBootFile = reader.ReadConfig("settings", "bios-bootfile");
             Efi32BootFile = reader.ReadConfig("settings", "efi32-bootfile");
             Efi64BootFile = reader.ReadConfig("settings", "efi64-bootfile");
@@ -80,6 +108,10 @@ namespace CloneDeploy_Proxy_Dhcp.Config
             RootPath = reader.ReadConfig("settings", "apple-root-path");
             VendorInfo = reader.ReadConfig("settings", "apple-vendor-specific-information");
             ServerIdentifierOverride = reader.ReadConfig("settings", "server-identifier-override");
+
+
+          
+
             try
             {
                 ListenBSDP = Convert.ToBoolean(reader.ReadConfig("settings", "listen-apple-bsdp"));
@@ -93,24 +125,98 @@ namespace CloneDeploy_Proxy_Dhcp.Config
 
             AppleEFIBootFile = reader.ReadConfig("settings", "apple-efi-boot-file");
            
-            if (!string.IsNullOrEmpty(Settings.CloneDeployServiceURL))
+            if (!string.IsNullOrEmpty(CloneDeployServiceURL))
             {
-                using (var client = new WebClient())
+                Console.Write("CloneDeploy ServiceURL Is Populated.  Testing API ... ");
+                CheckAppleApi = true;
+                var testResult = new ApiCalls.APICall().ProxyDhcpApi.Test();
+                if (!testResult)
+                {
+                    Console.WriteLine("FAILED");
+                    Console.WriteLine("... Web Reservations Will Not Be Processed");
+                    Console.WriteLine("... Clustered Tftp Servers Will Not Be Processed");
+                    CloneDeployServiceURL = null;
+                    CheckTftpCluster = false;
+                    CheckWebReservations = false;
+                    CheckAppleApi = false;
+                }
+                else
+                {
+                    Console.WriteLine("PASSED");
+                }
+
+                if (ListenBSDP && CheckAppleApi)
+                {
+                    var profileIp = "";
+                    Console.WriteLine("Checking For Apple NetBoot Info From CloneDeploy API");
+                    if (Nic == "0.0.0.0")
+                    {
+                        profileIp = ServerIdentifierOverride;
+                        Console.WriteLine("Looking For Matching NetBoot Profile For IP " + ServerIdentifierOverride);
+                    }
+                    else
+                    {
+                        profileIp = Nic;
+                        Console.WriteLine("Looking For Matching NetBoot Profile For IP " + Nic);
+                    }
+
+                    var appleVendorDto = new ApiCalls.APICall().ProxyDhcpApi.GetAppleVendorString(profileIp);
+                    if (appleVendorDto.Success)
+                    {
+                        Console.WriteLine("Found. " + appleVendorDto.VendorString);
+                        VendorInfo = appleVendorDto.VendorString;
+                    }
+                    else
+                    {
+                        Console.WriteLine(appleVendorDto.ErrorMessage);
+                    }
+
+                }
+
+                if (CheckTftpCluster)
                 {
                     try
                     {
-                        client.DownloadString(Settings.CloneDeployServiceURL + "Test");
+                        TftpPollingInterval = Int32.Parse(reader.ReadConfig("settings", "tftp-polling-interval"));
                     }
-                    catch
+                    catch (Exception)
                     {
-                        Console.WriteLine("CloneDeploy Web Service Test Failed.  Web Reservations Will Not Be Processed");
-                        CloneDeployServiceURL = null;
+                        Console.WriteLine(
+                            "tftp-polling-interval Is Not Valid.  Valid Entries Include A Positive Integer");
+                        isError = true;
+                        CheckTftpCluster = false;
                     }
+
+                    try
+                    {
+                    Console.WriteLine("Clustered Tftp Server Check Is Enabled.  Enumerating Tftp Servers ...");
+
+                        new TftpMonitor().Run();
+                        //Fix me - the last item in the list seems to get cut off because it might not have finished the tftp get again.  Running it again, adds a delay.
+                        new TftpMonitor().Run();
+                      
+                        for (int i = 0; i < TftpMonitor.TftpStatus.Keys.Count; i++)
+                        {
+                            Console.WriteLine(TftpMonitor.TftpStatus.ElementAt(i));
+                        }
+                        Console.WriteLine("... Complete");
+
+                    }
+                    catch (Exception)
+                    {
+                        Console.WriteLine(
+                            "Could Not Enumerate Tftp Servers");
+                        isError = true;
+                        CheckTftpCluster = false;
+                    }
+
+
+
                 }
             }
             else
             {
-                Console.WriteLine("CloneDeploy Web Service Is Not Populated.  Web Reservations Will Not Be Processed");
+                Console.WriteLine("CloneDeploy Web Service Is Not Populated.  Web Reservations And Apple NetBoot Profiles Will Not Be Processed");
             }
 
             Console.WriteLine();
@@ -208,6 +314,8 @@ namespace CloneDeploy_Proxy_Dhcp.Config
                 Console.WriteLine("Could Not Parse Local Reservations File.  Local Reservations Will Not Be Processed");
                 DHCPServer.DHCPServer.Reservations.Clear();
             }
+
+            
           
           
         }  

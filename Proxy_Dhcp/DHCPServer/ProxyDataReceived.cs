@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics;
 using System.Net;
 using System.Text;
+using CloneDeploy_Proxy_Dhcp.ApiCalls;
 using CloneDeploy_Proxy_Dhcp.Config;
+using CloneDeploy_Proxy_Dhcp.Dtos;
 using CloneDeploy_Proxy_Dhcp.Helpers;
-using Newtonsoft.Json;
+using CloneDeploy_Proxy_Dhcp.Tftp;
 
 namespace CloneDeploy_Proxy_Dhcp.DHCPServer
 {
@@ -12,8 +14,9 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
         public void Process(DHCPRequest dhcpRequest)
         {
             var requestType = dhcpRequest.GetMsgType();
-            Trace.WriteLine(requestType + " Proxy Request From " + Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true) + " " +
-                               dhcpRequest.GetSourceIP() + ":" + dhcpRequest.GetSourcePort());
+            Trace.WriteLine(requestType + " Proxy Request From " +
+                            Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true) + " " +
+                            dhcpRequest.GetSourceIP() + ":" + dhcpRequest.GetSourcePort());
 
             var clientHardwareAddress = new PhysicalAddress(dhcpRequest.GetChaddr());
             if (DHCPServer.AclList.ContainsKey(clientHardwareAddress) && !DHCPServer.AclList[clientHardwareAddress] ||
@@ -46,88 +49,110 @@ namespace CloneDeploy_Proxy_Dhcp.DHCPServer
         {
             Trace.WriteLine("Request Is A Proxy PXE Boot");
 
+            bool isWebReservation = false;
+            bool isLocalReservation = false;
             var replyOptions = new DHCPReplyOptions();
-            replyOptions.NextServer = IPAddress.Parse(Settings.NextServer);
-
+            
             var clientHardwareAddress = new PhysicalAddress(dhcpRequest.GetChaddr());
             if (DHCPServer.Reservations.ContainsKey(clientHardwareAddress))
             {
+                isLocalReservation = true;
                 Trace.WriteLine("Local Reservation Found");
                 replyOptions.NextServer =
                     IPAddress.Parse(DHCPServer.Reservations[clientHardwareAddress].ReserveNextServer);
                 replyOptions.BootFileName = DHCPServer.Reservations[clientHardwareAddress].ReserveBootFile;
-                if(DHCPServer.Reservations[clientHardwareAddress].ReserveBCDFile != null)
-                    replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(DHCPServer.Reservations[clientHardwareAddress].ReserveBCDFile));
+                if (DHCPServer.Reservations[clientHardwareAddress].ReserveBCDFile != null)
+                    replyOptions.OtherOptions.Add(DHCPOption.Wpad,
+                        Encoding.UTF8.GetBytes(DHCPServer.Reservations[clientHardwareAddress].ReserveBCDFile));
             }
-            else
+            else if (Settings.CheckWebReservations)
             {
-                //Check for Web Reservation
-                var webReservation = new WebReservation();
                 if (!string.IsNullOrEmpty(Settings.CloneDeployServiceURL))
                 {
+                    ProxyReservationDTO webReservation;
+
                     lock (dhcpRequest)
                     {
-                        using (var client = new WebClient())
+                        var mac = Utility.AddHexColons(Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true));
+                        webReservation = new APICall().ProxyDhcpApi.GetProxyReservation(mac);
+                    }
+
+
+                    if (webReservation.BootFile != null && webReservation.BootFile != "NotFound" &&
+                        webReservation.BootFile != "NotEnabled")
+                    {
+                        isWebReservation = true;
+                        Trace.WriteLine("Web Reservation Found");
+                        if(!string.IsNullOrEmpty(webReservation.NextServer))
+                            replyOptions.NextServer = IPAddress.Parse(webReservation.NextServer);
+                        else
                         {
-                            var mac = Utility.AddHexColons(Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true));
-                            var json =
-                                client.DownloadString(Settings.CloneDeployServiceURL + "GetProxyReservation?mac=" + mac);
-                            webReservation = JsonConvert.DeserializeObject<WebReservation>(json);
+                            if (Settings.CheckTftpCluster)
+                            {
+                                var mac = Utility.AddHexColons(Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true));
+                                replyOptions.NextServer = new TftpCluster().GetNextServer(mac);
+                            }
+                            else
+                                replyOptions.NextServer = IPAddress.Parse(Settings.NextServer);
                         }
+                        replyOptions.BootFileName = webReservation.BootFile;
+                        if (webReservation.BcdFile != null)
+                            replyOptions.OtherOptions.Add(DHCPOption.Wpad,
+                                Encoding.UTF8.GetBytes(webReservation.BcdFile));
                     }
                 }
+            }
 
-                if (webReservation.BootFile != null && webReservation.BootFile != "NotFound" &&
-                    webReservation.BootFile != "NotEnabled")
+            if (!isWebReservation && !isLocalReservation)
+            {
+
+                if (Settings.CheckTftpCluster && !string.IsNullOrEmpty(Settings.CloneDeployServiceURL))
                 {
-                    Trace.WriteLine("Web Reservation Found");
-                    replyOptions.NextServer = IPAddress.Parse(webReservation.NextServer);
-                    replyOptions.BootFileName = webReservation.BootFile;
-                    if(webReservation.BcdFile != null)
-                        replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(webReservation.BcdFile));
+                    var mac = Utility.AddHexColons(Utility.ByteArrayToString(dhcpRequest.GetChaddr(), true));
+                    replyOptions.NextServer = new TftpCluster().GetNextServer(mac);
+                }
+                else
+                    replyOptions.NextServer = IPAddress.Parse(Settings.NextServer);
+
+                var clientArch = dhcpRequest.GetClientSystemArch();
+                if (clientArch != DHCPRequest.ClientSystemArch.Error)
+                {
+                    Trace.WriteLine("Client Architecture: " + clientArch);
+                    bool unsupportedArch = false;
+                    switch (clientArch)
+                    {
+                        case DHCPRequest.ClientSystemArch.Intelx86PC: //legacy bios
+                            replyOptions.BootFileName = Settings.BiosBootFile;
+                            replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx86"));
+                            break;
+                        case DHCPRequest.ClientSystemArch.EFIIA32: //efi x86
+                            replyOptions.BootFileName = Settings.Efi32BootFile;
+                            replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx86"));
+                            break;
+                        case DHCPRequest.ClientSystemArch.EFIBC: //efi x64
+                            replyOptions.BootFileName = Settings.Efi64BootFile;
+                            replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx64"));
+                            break;
+                        case DHCPRequest.ClientSystemArch.EFIx8664: //efi x64
+                            replyOptions.BootFileName = Settings.Efi64BootFile;
+                            replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx64"));
+                            break;
+                        default:
+                            Trace.WriteLine("Unsupported Client System Architecture " + clientArch + " - Ignoring");
+                            unsupportedArch = true;
+                            break;
+                    }
+
+                    if (unsupportedArch) return;
                 }
                 else
                 {
-                    Trace.WriteLine("No Reservation Found. Using Default config");
-                    var clientArch = dhcpRequest.GetClientSystemArch();
-                    if (clientArch != DHCPRequest.ClientSystemArch.Error)
-                    {
-                        Trace.WriteLine("Client Architecture: " + clientArch);
-                        bool unsupportedArch = false;
-                        switch (clientArch)
-                        {
-                            case DHCPRequest.ClientSystemArch.Intelx86PC: //legacy bios
-                                replyOptions.BootFileName = Settings.BiosBootFile;
-                                replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx86"));
-                                break;
-                            case DHCPRequest.ClientSystemArch.EFIIA32: //efi x86
-                                replyOptions.BootFileName = Settings.Efi32BootFile;
-                                replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx86"));
-                                break;
-                            case DHCPRequest.ClientSystemArch.EFIBC: //efi x64
-                                replyOptions.BootFileName = Settings.Efi64BootFile;
-                                replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx64"));
-                                break;
-                            case DHCPRequest.ClientSystemArch.EFIx8664: //efi x64
-                                replyOptions.BootFileName = Settings.Efi64BootFile;
-                                replyOptions.OtherOptions.Add(DHCPOption.Wpad, Encoding.UTF8.GetBytes(@"\boot\BCDx64"));
-                                break;
-                            default:
-                                Trace.WriteLine("Unsupported Client System Architecture " + clientArch + " - Ignoring");
-                                unsupportedArch = true;
-                                break;
-                        }
-
-                        if (unsupportedArch) return;
-                    }
-                    else
-                    {
-                        Trace.WriteLine("Unsupported Client System Architecture " + clientArch + " - Ignoring");
-                        return;
-                    }
+                    Trace.WriteLine("Unsupported Client System Architecture " + clientArch + " - Ignoring");
+                    return;
                 }
             }
 
+            
             var replyPort = dhcpRequest.GetSourcePort() == 4011 ? 4011 : 68;
             var reply = new DHCPReply(dhcpRequest);
             reply.Send(DHCPMsgType.DHCPACK, replyOptions, replyPort);

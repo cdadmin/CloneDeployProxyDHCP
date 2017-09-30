@@ -37,6 +37,7 @@ using System.ServiceProcess;
 using CloneDeploy_Proxy_Dhcp.Config;
 using CloneDeploy_Proxy_Dhcp.DHCPServer;
 using CloneDeploy_Proxy_Dhcp.ServiceHost;
+using CloneDeploy_Proxy_Dhcp.Tftp;
 using Mono.Unix;
 using Mono.Unix.Native;
 
@@ -61,7 +62,7 @@ namespace CloneDeploy_Proxy_Dhcp
 
             if (args.Length > 0 && ContainsSwitch(args, "version"))
             {
-                Console.WriteLine("2.0.2");
+                Console.WriteLine("2.1.1");
                 Environment.Exit(0);
             }
 
@@ -83,12 +84,17 @@ namespace CloneDeploy_Proxy_Dhcp
                 Environment.Exit(0);
             }
 
+            if (ContainsSwitch(args, "debug"))
+                Trace.Listeners.Add(new TextWriterTraceListener(Console.Out));
+
             new Settings().SetAll();
             var server = new DHCPServer.DHCPServer(IPAddress.Parse(Settings.Nic), 67);
             var proxy = new DHCPServer.DHCPServer(IPAddress.Parse(Settings.Nic), 4011);
+            var tftpMon = new TftpMonitor();
+
             server.OnDataReceived += new DHCPDataReceived().Process;
             proxy.OnDataReceived += new ProxyDataReceived().Process;
-            DhcpHost host = new DhcpHost(server, proxy);
+            DhcpHost host = new DhcpHost(server, proxy,tftpMon);
 
             //Run as Windows service
             if (args.Length == 0)
@@ -120,8 +126,7 @@ namespace CloneDeploy_Proxy_Dhcp
             }
             else if (ContainsSwitch(args, "console") || ContainsSwitch(args, "debug"))
             {
-                if (ContainsSwitch(args, "debug"))
-                    Trace.Listeners.Add(new TextWriterTraceListener(Console.Out));
+               
 
                 host.ManualStart(args);
                 Console.WriteLine();

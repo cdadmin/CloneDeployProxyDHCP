@@ -14,7 +14,7 @@
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
     <IsWebBootstrapper>false</IsWebBootstrapper>
-    <PublishUrl>publish\</PublishUrl>
+    <PublishUrl>C:\cd-prox\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
     <UpdateEnabled>false</UpdateEnabled>
@@ -24,8 +24,8 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
-    <ApplicationRevision>1</ApplicationRevision>
-    <ApplicationVersion>2.0.0.%2a</ApplicationVersion>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>2.1.1.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -56,7 +56,7 @@
     <ManifestKeyFile>Proxy_Dhcp_TemporaryKey.pfx</ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
-    <GenerateManifests>false</GenerateManifests>
+    <GenerateManifests>true</GenerateManifests>
   </PropertyGroup>
   <PropertyGroup>
     <TargetZone>LocalIntranet</TargetZone>
@@ -79,6 +79,9 @@
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\packages\Newtonsoft.Json.9.0.1\lib\net40\Newtonsoft.Json.dll</HintPath>
     </Reference>
+    <Reference Include="RestSharp">
+      <HintPath>..\packages\RestSharp.105.2.3\lib\net4-client\RestSharp.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.Core" />
@@ -88,14 +91,26 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="Tftp.Net, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\Tftp.Net.1.1.0.0\lib\Tftp.Net.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ApiCalls\APICall.cs" />
+    <Compile Include="ApiCalls\ApiRequest.cs" />
+    <Compile Include="ApiCalls\IAPICall.cs" />
+    <Compile Include="ApiCalls\ProxyDhcpApi.cs" />
     <Compile Include="Config\AppleVendorInfo.cs" />
     <Compile Include="Config\Settings.cs" />
     <Compile Include="DHCPServer\DHCPDataReceived.cs" />
     <Compile Include="DHCPServer\DHCPMessage.cs" />
     <Compile Include="DHCPServer\DHCPReply.cs" />
     <Compile Include="DHCPServer\DHCPRequest.cs" />
+    <Compile Include="Dtos\ApiBoolResponseDTO.cs" />
+    <Compile Include="Dtos\AppleVendorDTO.cs" />
+    <Compile Include="Dtos\TftpServerDTO.cs" />
+    <Compile Include="Dtos\ProxyReservationDTO.cs" />
     <Compile Include="Helpers\PhysicalAddress.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -120,6 +135,9 @@
       <DependentUpon>ProjectInstaller.cs</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Tftp\TftpCluster.cs" />
+    <Compile Include="Tftp\TftpGet.cs" />
+    <Compile Include="Tftp\TftpMonitor.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="ServiceHost\DhcpHost.resx">
@@ -157,6 +175,7 @@
     <None Include="app.config" />
     <None Include="packages.config" />
     <None Include="Properties\app.manifest" />
+    <None Include="SampleConfig\config.ini" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
